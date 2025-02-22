@@ -18,15 +18,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
-import kotlin.reflect.KFunction1
+import kotlin.math.abs
+import kotlin.reflect.KFunction3
 
 class FaceDetectorAnalyzer(
-    private val onDetectedFaceUpdated: KFunction1<FaceContour, Unit>,
-    val onSizeUpdated: (
-        Int,
-        Int,
-    ) -> Unit,
-    val onNoseUpdated: KFunction1<PointF, Unit>,
+    private val   onDetectedFaceUpdated: KFunction3<FaceContour, Float, PointF, Unit>,
+    val onSizeUpdated: (Int, Int) -> Unit,
 ) : ImageAnalysis.Analyzer {
 
     companion object {
@@ -60,12 +57,16 @@ class FaceDetectorAnalyzer(
                 detector.process(inputImage)
                     .addOnSuccessListener { faces ->
                         faces.forEach { face ->
+                           // val degree = face.headEulerAngleZ// не смог разобраться как отображать корректно при ротации, времени много надо...
+                            val lEar = face.getLandmark(FaceLandmark.LEFT_EAR)
+                            val rEar = face.getLandmark(FaceLandmark.RIGHT_EAR)
+                            var faceWidth = 0F
+                            if (lEar!=null&&rEar!=null)
+                                faceWidth = abs(lEar.position.x - rEar.position.x)
                             onSizeUpdated(inputImage.width, inputImage.height)
                             val detectedFace = face.getContour(FaceContour.FACE)?: return@forEach
                             val noseLandmark = face.getLandmark(FaceLandmark.NOSE_BASE)
-                            if (noseLandmark != null)
-                                onNoseUpdated(noseLandmark.position)
-                            onDetectedFaceUpdated(detectedFace)
+                            onDetectedFaceUpdated(detectedFace,faceWidth,noseLandmark?.position?: PointF())
                         }
                     }
                     .addOnCompleteListener {

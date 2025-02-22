@@ -1,5 +1,6 @@
 package com.example.pyshoptask3.ui.FaceDetector
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
@@ -20,6 +21,7 @@ import androidx.compose.material.Text
 import androidx.compose.material.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,7 +46,9 @@ import com.google.mlkit.vision.face.FaceContour
 import kotlin.math.ceil
 import kotlin.reflect.KFunction1
 import kotlin.reflect.KFunction2
+import kotlin.reflect.KFunction3
 
+@SuppressLint("SuspiciousIndentation")
 @Composable
 fun FaceDetectorScreen(modifier: Modifier = Modifier) {
     val context: Context = LocalContext.current
@@ -62,15 +66,18 @@ fun FaceDetectorScreen(modifier: Modifier = Modifier) {
     var height by remember {
         mutableIntStateOf(0)
     }
-    var degree by remember {
-        mutableIntStateOf(0)
+    var moustacheWidth by remember {
+        mutableFloatStateOf(0F)
     }
     val nosePosition by remember {
         mutableStateOf(PointF())
     }
 
-    fun onFaceUpdated(updatedFace: FaceContour) {
+    fun onFaceUpdated(updatedFace: FaceContour,faceWidth:Float,point:PointF) {
         counturs = updatedFace
+        moustacheWidth = faceWidth/3
+        nosePosition.x = point.x
+        nosePosition.y = point.y
     }
 
     fun onSizeUpdated(imageWidth: Int, imageHeight: Int) {
@@ -81,13 +88,8 @@ fun FaceDetectorScreen(modifier: Modifier = Modifier) {
             height = imageHeight
             width = imageWidth
         }
-        degree = imageWidth
     }
 
-    fun onNoseUpdated(pointF: PointF) {
-        nosePosition.x = pointF.x
-        nosePosition.y = pointF.y
-    }
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = { TopAppBar(title = { Text("Face detector") }) },
@@ -111,14 +113,13 @@ fun FaceDetectorScreen(modifier: Modifier = Modifier) {
                         implementationMode = PreviewView.ImplementationMode.COMPATIBLE
                         scaleType = PreviewView.ScaleType.FILL_START
                     }.also { previewView ->
-                        startTextRecognition(
+                        startFaceDetection(
                             context = context,
                             cameraController = cameraController,
                             lifecycleOwner = lifecycleOwner,
                             previewView = previewView,
-                            onDetectedTextUpdated = ::onFaceUpdated,
-                            onSizeUpdated = ::onSizeUpdated,
-                            onNoseUpdated = ::onNoseUpdated
+                            onDetectedFaceUpdated = ::onFaceUpdated,
+                            onSizeUpdated = ::onSizeUpdated
                         )
                     }
                 }
@@ -135,52 +136,49 @@ fun FaceDetectorScreen(modifier: Modifier = Modifier) {
                 val offsetX = (size.width - ceil(width * scaleX)) / 2.0f
                 val offsetY = (size.height - ceil(height * scaleY)) / 2.0f
                 val points = counturs.points
-                val moustacheWidth = width / 5f
-                val moustacheHeight = height / 10f
-                translate(     //рисуем усы
-                    nosePosition.x * scale + offsetX - moustacheWidth / 2,
-                    nosePosition.y * scale + offsetX
-                ) {
-                    with(painter)
-                    {
-                        draw(
-                            Size(moustacheWidth, moustacheHeight)
-                        )
-                    }
-                }
-                drawPath(    //рисуем контур
-                    path = Path().apply {
-                        moveTo(points[0].x * scale + offsetX, points[0].y * scale + offsetY)
-                        for (i in 1..<points.size) {
-                            lineTo(points[i].x * scale + offsetX, points[i].y * scale + offsetY)
+                if(moustacheWidth>0F&& nosePosition!=PointF())
+                    translate(     //рисуем усы
+                        nosePosition.x * scale + offsetX - moustacheWidth / 2,
+                        nosePosition.y * scale + offsetX + moustacheWidth/4
+                    ) {
+                        with(painter)
+                        {
+                            draw(
+                                Size(moustacheWidth, moustacheWidth/2)
+                            )
                         }
-                        lineTo(points[0].x * scale + offsetX, points[0].y * scale + offsetY)
-                    },
-                    androidx.compose.ui.graphics.Color.Red,
-                    style = Stroke(3.dp.toPx())
-                )
-            }
+                    }
+                    drawPath(    //рисуем контур
+                        path = Path().apply {
+                            moveTo(points[0].x * scale + offsetX, points[0].y * scale + offsetY)
+                            for (i in 1..<points.size) {
+                                lineTo(points[i].x * scale + offsetX, points[i].y * scale + offsetY)
+                            }
+                            lineTo(points[0].x * scale + offsetX, points[0].y * scale + offsetY)
+                        },
+                        androidx.compose.ui.graphics.Color.Red,
+                        style = Stroke(3.dp.toPx())
+                    )
+                }
         }
     }
 }
 
-private fun startTextRecognition(
+private fun startFaceDetection(
     context: Context,
     cameraController: LifecycleCameraController,
     lifecycleOwner: LifecycleOwner,
     previewView: PreviewView,
-    onDetectedTextUpdated: KFunction1<FaceContour, Unit>,
-    onSizeUpdated: KFunction2<Int, Int, Unit>,
-    onNoseUpdated: KFunction1<PointF, Unit>,
+    onDetectedFaceUpdated: KFunction3<FaceContour, Float, PointF, Unit>,
+    onSizeUpdated: KFunction2<Int, Int, Unit>
 ) {
 
     cameraController.imageAnalysisTargetSize = CameraController.OutputSize(AspectRatio.RATIO_16_9)
     cameraController.setImageAnalysisAnalyzer(
         ContextCompat.getMainExecutor(context),
         FaceDetectorAnalyzer(
-            onDetectedFaceUpdated = onDetectedTextUpdated,
-            onSizeUpdated = onSizeUpdated,
-            onNoseUpdated = onNoseUpdated
+            onDetectedFaceUpdated = onDetectedFaceUpdated,
+            onSizeUpdated = onSizeUpdated
         )
     )
 
